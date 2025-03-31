@@ -1,0 +1,287 @@
+# Default values for OpenCloud Helm chart
+# This is a YAML-formatted file.
+
+# Namespace to install the chart into
+namespace: "opencloud"
+# Create the namespace if it doesn't exist
+createNamespace: true
+
+# Global settings
+global:
+  # Domain settings
+  domain:
+    # Main domain for OpenCloud
+    opencloud: cloud.opencloud.test
+    # Domain for Keycloak
+    keycloak: keycloak.opencloud.test
+    # Domain for MinIO
+    minio: minio.opencloud.test
+    # Domain for Collabora
+    collabora: collabora.opencloud.test
+    # Domain for OnlyOffice
+    onlyoffice: onlyoffice.opencloud.test
+    # Domain for Companion
+    companion: companion.opencloud.test
+
+  # TLS settings
+  tls:
+    # Enable TLS
+    enabled: true
+    # Use self-signed certificates
+    selfSigned: true
+    # ACME email for Let's Encrypt
+    acmeEmail: example@example.org
+    # ACME CA server
+    acmeCAServer: https://acme-v02.api.letsencrypt.org/directory
+
+  # Storage settings
+  storage:
+    # Storage class for persistent volumes
+    storageClass: ""
+
+# Image settings
+image:
+  # OpenCloud image repository
+  repository: docker.io/opencloudeu/opencloud-rolling
+  # OpenCloud image tag
+  tag: "2.0.0"
+  # Image pull policy
+  pullPolicy: IfNotPresent
+  # Image pull secrets
+  pullSecrets: []
+
+# OpenCloud settings
+opencloud:
+  # Enable OpenCloud
+  enabled: true
+  # Replicas
+  replicas: 1
+  # Log level
+  logLevel: info
+  # Log color
+  logColor: false
+  # Log pretty
+  logPretty: false
+  # Insecure mode (for self-signed certificates)
+  insecure: true
+  # Enable basic auth (set to false to use Keycloak only)
+  enableBasicAuth: false
+  # Admin password
+  adminPassword: admin
+  # Create demo users
+  createDemoUsers: false
+  # Additional services to start (comma-separated list)
+  additionalServices: ""
+  # Services to exclude from starting
+  excludeServices: "idp,search"
+  # Resources
+  resources:
+    requests:
+      cpu: 128m
+      memory: 128Mi
+    limits:
+      memory: 2Gi
+  # Persistence
+  persistence:
+    enabled: false
+    # Size of the persistent volume
+    size: 10Gi
+    # Storage class
+    storageClass: ""
+    # Access mode
+    accessMode: ReadWriteOnce
+  # Configuration files
+  config:
+    # App registry configuration
+    appRegistry: {}
+    # CSP configuration
+    csp: {}
+    # Banned password list
+    bannedPasswordList: []
+  
+  # SMTP settings
+  smtp:
+    # Enable SMTP
+    enabled: false
+  
+  # Storage configuration
+  storage:
+    # Storage driver (posix, decomposed, decomposeds3)
+    driver: "decomposeds3"
+    # System storage driver (posix, decomposed)
+    systemDriver: "decomposed"
+    
+    # S3 storage configuration (when driver is decomposeds3)
+    s3:
+      # S3 endpoint (defaults to MinIO service if empty)
+      endpoint: ""
+      # S3 region
+      region: "default"
+      # S3 access key (defaults to MinIO root user if empty)
+      accessKey: ""
+      # S3 secret key (defaults to MinIO root password if empty)
+      secretKey: ""
+      # S3 bucket (defaults to MinIO bucket name if empty)
+      bucket: ""
+      # Create bucket if it doesn't exist
+      createBucket: true
+
+# Keycloak settings
+keycloak:
+  # Enable Keycloak
+  enabled: true
+  # Use external Keycloak
+  external:
+    # Enable external Keycloak
+    enabled: false
+    # External Keycloak URL
+    url: ""
+    # External Keycloak realm
+    realm: "openCloud"
+    # External Keycloak client ID
+    clientId: "web"
+  # Replicas
+  replicas: 1
+  # Admin user
+  adminUser: admin
+  # Admin password
+  adminPassword: admin
+  # CORS settings
+  cors:
+    # Enable CORS
+    enabled: true
+    # Allow all origins
+    allowAllOrigins: true
+    # Allowed origins (used if allowAllOrigins is false)
+    origins: []
+    # Allowed methods
+    methods: "GET,HEAD,OPTIONS,POST,PUT,DELETE"
+    # Allowed headers
+    headers: "Authorization,Content-Type,Accept,Origin,X-Requested-With"
+    # Exposed headers
+    exposedHeaders: "Content-Disposition,Content-Length,Content-Type"
+    # Allow credentials
+    allowCredentials: true
+    # Max age
+    maxAge: 3600
+  # Token settings
+  token:
+    # Access token lifespan in seconds
+    accessTokenLifespan: 3600
+  # Resources
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  # Realm name
+  realm: openCloud
+  # Persistence
+  persistence:
+    enabled: true
+    # Size of the persistent volume
+    size: 1Gi
+    # Storage class
+    storageClass: ""
+    # Access mode
+    accessMode: ReadWriteOnce
+
+# PostgreSQL settings for Keycloak
+postgres:
+  # Enable PostgreSQL
+  enabled: true
+  # Database name
+  database: keycloak
+  # Database user
+  user: keycloak
+  # Database password
+  password: keycloak
+  # Resources
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  # Persistence
+  persistence:
+    enabled: true
+    # Size of the persistent volume
+    size: 1Gi
+    # Storage class
+    storageClass: ""
+    # Access mode
+    accessMode: ReadWriteOnce
+
+# MinIO settings
+minio:
+  # Enable MinIO
+  enabled: true
+  # Root user
+  rootUser: opencloud
+  # Root password
+  rootPassword: opencloud-secret-key
+  # Bucket name
+  bucketName: opencloud-bucket
+  # Resources
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  # Persistence
+  persistence:
+    enabled: true
+    # Size of the persistent volume
+    size: 10Gi
+    # Storage class
+    storageClass: ""
+    # Access mode
+    accessMode: ReadWriteOnce
+
+# Tika settings for full-text search
+tika:
+  # Enable Tika
+  enabled: true
+  # Tika image repository
+  repository: apache/tika
+  # Tika image tag
+  tag: "2.9.1.0"
+  # Image pull policy
+  pullPolicy: IfNotPresent
+  # Resources
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+# Collabora settings
+collabora:
+  # Enable Collabora
+  enabled: false
+
+# Collaboration service settings
+collaboration:
+  # Enable collaboration service
+  enabled: false
+
+# Cilium Gateway API configuration
+cilium:
+  # HTTPRoute configuration
+  httproute:
+    # Enable HTTPRoute
+    enabled: true
+    # Gateway configuration
+    gateway:
+      # Gateway name
+      name: cilium-gateway
+      # Gateway namespace (defaults to Release.Namespace)
+      namespace: "kube-system"

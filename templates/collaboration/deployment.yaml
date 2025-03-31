@@ -1,0 +1,75 @@
+{{- if and .Values.collaboration.enabled .Values.collabora.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "opencloud.fullname" . }}-collaboration
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "opencloud.labels" . | nindent 4 }}
+    app.kubernetes.io/component: collaboration
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "opencloud.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: collaboration
+  template:
+    metadata:
+      labels:
+        {{- include "opencloud.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: collaboration
+    spec:
+      containers:
+        - name: collaboration
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/bin/sh"]
+          args: ["-c", "opencloud collaboration server"]
+          env:
+            - name: COLLABORATION_GRPC_ADDR
+              value: "0.0.0.0:9301"
+            - name: COLLABORATION_HTTP_ADDR
+              value: "0.0.0.0:9300"
+            - name: MICRO_REGISTRY
+              value: "nats-js-kv"
+            - name: MICRO_REGISTRY_ADDRESS
+              value: "{{ include "opencloud.opencloud.fullname" . }}.{{ .Values.namespace }}.svc.cluster.local:9233"
+            - name: COLLABORATION_WOPI_SRC
+              value: "http://{{ .Values.collaboration.wopiDomain }}"
+            - name: COLLABORATION_APP_NAME
+              value: "CollaboraOnline"
+            - name: COLLABORATION_APP_PRODUCT
+              value: "Collabora"
+            - name: COLLABORATION_APP_ADDR
+              value: "http://{{ .Values.global.domain.collabora }}"
+            - name: COLLABORATION_APP_ICON
+              value: "http://{{ .Values.global.domain.collabora }}/favicon.ico"
+            - name: COLLABORATION_APP_INSECURE
+              value: "{{ .Values.opencloud.insecure }}"
+            - name: COLLABORATION_CS3API_DATAGATEWAY_INSECURE
+              value: "{{ .Values.opencloud.insecure }}"
+            - name: COLLABORATION_LOG_LEVEL
+              value: "{{ .Values.opencloud.logLevel }}"
+            - name: OC_URL
+              value: "http://{{ include "opencloud.domain" . }}"
+          ports:
+            - name: http
+              containerPort: 9300
+              protocol: TCP
+            - name: grpc
+              containerPort: 9301
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /etc/opencloud
+          resources:
+            {{- toYaml .Values.collaboration.resources | nindent 12 }}
+      volumes:
+        - name: config
+          {{- if .Values.opencloud.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "opencloud.opencloud.fullname" . }}-config
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+{{- end }}

@@ -1,0 +1,70 @@
+{{- if .Values.collabora.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "opencloud.fullname" . }}-collabora
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "opencloud.labels" . | nindent 4 }}
+    app.kubernetes.io/component: collabora
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "opencloud.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: collabora
+  template:
+    metadata:
+      labels:
+        {{- include "opencloud.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: collabora
+    spec:
+      containers:
+        - name: collabora
+          image: {{ .Values.collabora.repository }}:{{ .Values.collabora.tag }}
+          imagePullPolicy: {{ .Values.collabora.pullPolicy }}
+          command: ['/bin/bash', '-c']
+          args: ['mkdir -p /etc/coolwsd && touch /etc/coolwsd/ca-chain.cert.pem && coolconfig generate-proof-key && /start-collabora-online.sh']
+          env:
+            - name: aliasgroup1
+              value: http://{{ .Values.collaboration.wopiDomain }}:80
+            - name: DONT_GEN_SSL_CERT
+              value: "YES"
+            - name: extra_params
+              value: |
+                --o:ssl.enable={{ .Values.collabora.ssl.enabled }} \
+                --o:ssl.ssl_verification={{ .Values.collabora.ssl.verification }} \
+                --o:ssl.termination=true \
+                --o:welcome.enable=false \
+                --o:net.frame_ancestors={{ include "opencloud.domain" . }}
+            - name: username
+              value: {{ .Values.collabora.adminUser }}
+            - name: password
+              value: {{ .Values.collabora.adminPassword }}
+          ports:
+            - name: http
+              containerPort: 9980
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          livenessProbe:
+            httpGet:
+              path: /hosting/discovery
+              port: 9980
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /hosting/discovery
+              port: 9980
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.collabora.resources | nindent 12 }}
+{{- end }}

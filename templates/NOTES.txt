@@ -1,0 +1,95 @@
+Thank you for installing {{ .Chart.Name }}.
+
+Your release is named {{ .Release.Name }}.
+
+To learn more about the release, try:
+
+  $ helm status {{ .Release.Name }}
+  $ helm get all {{ .Release.Name }}
+
+The following services have been deployed:
+
+1. OpenCloud (Main Application):
+   - Service: {{ include "opencloud.opencloud.fullname" . }}
+   - Port: 9200
+   - Storage Driver: {{ .Values.opencloud.storage.driver }}
+   - System Storage Driver: {{ .Values.opencloud.storage.systemDriver }}
+{{- if eq .Values.opencloud.storage.driver "decomposeds3" }}
+   - S3 Storage: {{ if .Values.opencloud.storage.s3.endpoint }}{{ .Values.opencloud.storage.s3.endpoint }}{{ else if .Values.minio.enabled }}MinIO ({{ include "opencloud.minio.fullname" . }}){{ else }}Not configured{{ end }}
+   - S3 Bucket: {{ if .Values.opencloud.storage.s3.bucket }}{{ .Values.opencloud.storage.s3.bucket }}{{ else if .Values.minio.enabled }}{{ .Values.minio.bucketName }}{{ else }}Not configured{{ end }}
+{{- end }}
+
+{{- if .Values.keycloak.enabled }}
+2. Keycloak (Authentication):
+   - Service: {{ include "opencloud.keycloak.fullname" . }}
+   - Port: 8080
+   - Username: {{ .Values.keycloak.adminUser }}
+   - Password: {{ .Values.keycloak.adminPassword }}
+{{- end }}
+
+{{- if .Values.minio.enabled }}
+3. MinIO (Object Storage):
+   - Service: {{ include "opencloud.minio.fullname" . }}
+   - API Port: 9000
+   - Console Port: 9001
+   - Username: {{ .Values.minio.rootUser }}
+   - Password: {{ .Values.minio.rootPassword }}
+{{- end }}
+
+{{- if .Values.collabora.enabled }}
+4. Collabora (Document Editor):
+   - Service: {{ include "opencloud.fullname" . }}-collabora
+   - Port: 9980
+   - Username: {{ .Values.collabora.adminUser }}
+   - Password: {{ .Values.collabora.adminPassword }}
+{{- end }}
+
+{{- if and .Values.collaboration.enabled .Values.collabora.enabled }}
+5. Collaboration Service (WOPI Server):
+   - Service: {{ include "opencloud.fullname" . }}-collaboration
+   - HTTP Port: 9300
+   - gRPC Port: 9301
+{{- end }}
+
+{{- if .Values.cilium.httproute.enabled }}
+IMPORTANT: This chart includes Cilium HTTPRoute resources that route traffic to the OpenCloud, Keycloak, and MinIO services.
+All HTTPRoutes are configured to use the Gateway named "{{ .Values.cilium.httproute.gateway.name }}" in the
+{{ if .Values.cilium.httproute.gateway.namespace }}{{ .Values.cilium.httproute.gateway.namespace }}{{ else }}{{ .Values.namespace }}{{ end }} namespace.
+
+Make sure the Gateway exists and is properly configured to accept traffic for the following domains:
+- OpenCloud: {{ include "opencloud.domain" . }} (Service: {{ include "opencloud.opencloud.fullname" . }}, Port: 9200)
+{{- if .Values.keycloak.enabled }}
+- Keycloak: {{ include "opencloud.keycloak.domain" . }} (Service: {{ include "opencloud.keycloak.fullname" . }}, Port: 8080)
+{{- end }}
+{{- if .Values.minio.enabled }}
+- MinIO Console: {{ include "opencloud.minio.domain" . }} (Service: {{ include "opencloud.minio.fullname" . }}, Port: 9001)
+{{- end }}
+{{- if .Values.collabora.enabled }}
+- Collabora: {{ .Values.global.domain.collabora }} (Service: {{ include "opencloud.fullname" . }}-collabora, Port: 9980)
+{{- end }}
+{{- if and .Values.collaboration.enabled .Values.collabora.enabled }}
+- Collaboration (WOPI): {{ .Values.collaboration.wopiDomain }} (Service: {{ include "opencloud.fullname" . }}-collaboration, Port: 9300)
+{{- end }}
+
+{{- else }}
+IMPORTANT: The Cilium HTTPRoutes are disabled. You need to configure your own ingress controller
+to expose these services externally.
+
+Example domains for your ingress configuration:
+- OpenCloud: {{ include "opencloud.domain" . }} (Service: {{ include "opencloud.opencloud.fullname" . }}, Port: 9200)
+{{- if .Values.keycloak.enabled }}
+- Keycloak: {{ include "opencloud.keycloak.domain" . }} (Service: {{ include "opencloud.keycloak.fullname" . }}, Port: 8080)
+{{- end }}
+{{- if .Values.minio.enabled }}
+- MinIO Console: {{ include "opencloud.minio.domain" . }} (Service: {{ include "opencloud.minio.fullname" . }}, Port: 9001)
+{{- end }}
+{{- if .Values.collabora.enabled }}
+- Collabora: {{ .Values.global.domain.collabora }} (Service: {{ include "opencloud.fullname" . }}-collabora, Port: 9980)
+{{- end }}
+{{- if and .Values.collaboration.enabled .Values.collabora.enabled }}
+- Collaboration (WOPI): {{ .Values.collaboration.wopiDomain }} (Service: {{ include "opencloud.fullname" . }}-collaboration, Port: 9300)
+{{- end }}
+{{- end }}
+
+For more information, please refer to the OpenCloud documentation:
+  https://docs.opencloud.eu/

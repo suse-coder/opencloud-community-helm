@@ -1,0 +1,188 @@
+{{- if .Values.opencloud.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "opencloud.opencloud.fullname" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "opencloud.labels" . | nindent 4 }}
+    app.kubernetes.io/component: opencloud
+  annotations:
+    reloader.stakater.com/auto: "true"
+spec:
+  replicas: {{ .Values.opencloud.replicas }}
+  selector:
+    matchLabels:
+      {{- include "opencloud.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: opencloud
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "opencloud.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: opencloud
+    spec:
+      initContainers:
+        - name: init-config
+          image: busybox
+          command: ['sh', '-c', 'mkdir -p /etc/opencloud /var/lib/opencloud']
+          volumeMounts:
+            - name: config
+              mountPath: /etc/opencloud
+            - name: data
+              mountPath: /var/lib/opencloud
+      containers:
+        - name: opencloud
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/bin/sh"]
+          args: ["-c", "opencloud init || true; opencloud server"]
+          env:
+            # OpenCloud URL
+            - name: OC_URL
+              value: "https://{{ include "opencloud.domain" . }}"
+            # Log settings
+            - name: OC_LOG_LEVEL
+              value: {{ .Values.opencloud.logLevel | quote }}
+            - name: OC_LOG_COLOR
+              value: {{ .Values.opencloud.logColor | quote }}
+            - name: OC_LOG_PRETTY
+              value: {{ .Values.opencloud.logPretty | quote }}
+            # Enable services that are not started automatically
+            - name: OC_ADD_RUN_SERVICES
+              value: {{ .Values.opencloud.additionalServices | quote }}
+            # Exclude services
+            - name: OC_EXCLUDE_RUN_SERVICES
+              value: {{ .Values.opencloud.excludeServices | default (printf "%s" (if .Values.keycloak.enabled "idp" "")) | quote }}
+            # Do not use SSL between proxy and OpenCloud
+            - name: PROXY_TLS
+              value: "false"
+            # Make the REVA gateway accessible to the app drivers
+            - name: GATEWAY_GRPC_ADDR
+              value: "0.0.0.0:9142"
+            # INSECURE: needed if OpenCloud is using self generated certificates
+            - name: OC_INSECURE
+              value: "true"
+            # Basic auth (only needed when not using Keycloak)
+            - name: PROXY_ENABLE_BASIC_AUTH
+              value: {{ if .Values.keycloak.enabled }}"false"{{ else }}"true"{{ end }}
+            {{- if .Values.keycloak.enabled }}
+            # Keycloak IDP specific configuration
+            - name: PROXY_AUTOPROVISION_ACCOUNTS
+              value: "true"
+            - name: PROXY_ROLE_ASSIGNMENT_DRIVER
+              value: "oidc"
+            - name: OC_OIDC_ISSUER
+              value: "https://{{ include "opencloud.keycloak.domain" . }}/realms/{{ .Values.keycloak.realm }}"
+            - name: PROXY_OIDC_REWRITE_WELLKNOWN
+              value: "true"
+            - name: WEB_OIDC_CLIENT_ID
+              value: "web"
+            - name: PROXY_USER_OIDC_CLAIM
+              value: "preferred_username"
+            - name: PROXY_USER_CS3_CLAIM
+              value: "username"
+            - name: OC_ADMIN_USER_ID
+              value: ""
+            - name: GRAPH_ASSIGN_DEFAULT_USER_ROLE
+              value: "false"
+            - name: GRAPH_USERNAME_MATCH
+              value: "none"
+            {{- end }}
+            # Admin user password
+            - name: IDM_ADMIN_PASSWORD
+              value: {{ .Values.opencloud.adminPassword | quote }}
+            # Demo users
+            - name: IDM_CREATE_DEMO_USERS
+              value: {{ .Values.opencloud.createDemoUsers | quote }}
+            # Make the registry available to the app provider containers
+            - name: MICRO_REGISTRY_ADDRESS
+              value: "127.0.0.1:9233"
+            - name: NATS_NATS_HOST
+              value: "0.0.0.0"
+            - name: NATS_NATS_PORT
+              value: "9233"
+            # CSP configuration
+            - name: PROXY_CSP_CONFIG_FILE_LOCATION
+              value: "/etc/opencloud/csp.yaml"
+            # Storage configuration
+            - name: STORAGE_USERS_DRIVER
+              value: {{ .Values.opencloud.storage.driver | quote }}
+            - name: STORAGE_SYSTEM_DRIVER
+              value: {{ .Values.opencloud.storage.systemDriver | quote }}
+            # S3 storage configuration
+            {{- if eq .Values.opencloud.storage.driver "decomposeds3" }}
+            - name: STORAGE_USERS_DECOMPOSEDS3_ENDPOINT
+              value: {{ if .Values.opencloud.storage.s3.endpoint }}{{ .Values.opencloud.storage.s3.endpoint | quote }}{{ else }}"http://{{ include "opencloud.minio.fullname" . }}:9000"{{ end }}
+            - name: STORAGE_USERS_DECOMPOSEDS3_REGION
+              value: {{ .Values.opencloud.storage.s3.region | quote }}
+            - name: STORAGE_USERS_DECOMPOSEDS3_ACCESS_KEY
+              value: {{ if .Values.opencloud.storage.s3.accessKey }}{{ .Values.opencloud.storage.s3.accessKey | quote }}{{ else }}{{ .Values.minio.rootUser | quote }}{{ end }}
+            - name: STORAGE_USERS_DECOMPOSEDS3_SECRET_KEY
+              value: {{ if .Values.opencloud.storage.s3.secretKey }}{{ .Values.opencloud.storage.s3.secretKey | quote }}{{ else }}{{ .Values.minio.rootPassword | quote }}{{ end }}
+            - name: STORAGE_USERS_DECOMPOSEDS3_BUCKET
+              value: {{ if .Values.opencloud.storage.s3.bucket }}{{ .Values.opencloud.storage.s3.bucket | quote }}{{ else }}{{ .Values.minio.bucketName | quote }}{{ end }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 9200
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 9200
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 1
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9200
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 1
+            failureThreshold: 3
+          volumeMounts:
+            - name: config
+              mountPath: /etc/opencloud
+            - name: data
+              mountPath: /var/lib/opencloud
+            - name: config-json
+              mountPath: /var/lib/opencloud/config.json
+              subPath: config.json
+            - name: config-files
+              mountPath: /etc/opencloud/search.yaml
+              subPath: search.yaml
+          resources:
+            {{- toYaml .Values.opencloud.resources | nindent 12 }}
+      volumes:
+        - name: config
+          {{- if .Values.opencloud.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "opencloud.opencloud.fullname" . }}-config
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: data
+          {{- if .Values.opencloud.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "opencloud.opencloud.fullname" . }}-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: config-json
+          configMap:
+            name: {{ include "opencloud.opencloud.fullname" . }}-config-json
+        - name: config-files
+          configMap:
+            name: {{ include "opencloud.opencloud.fullname" . }}-config
+{{- end }}

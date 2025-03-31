@@ -60,9 +60,9 @@ spec:
             # Enable services that are not started automatically
             - name: OC_ADD_RUN_SERVICES
               value: {{ .Values.opencloud.additionalServices | quote }}
-            # Exclude services
+            # Only exclude idp when using Keycloak
             - name: OC_EXCLUDE_RUN_SERVICES
-              value: {{ .Values.opencloud.excludeServices | default (printf "%s" (if .Values.keycloak.enabled "idp" "")) | quote }}
+              value: "{{ if .Values.keycloak.enabled }}idp,search{{ else }}search{{ end }}"
             # Do not use SSL between proxy and OpenCloud
             - name: PROXY_TLS
               value: "false"
@@ -162,6 +162,9 @@ spec:
             - name: config-files
               mountPath: /etc/opencloud/search.yaml
               subPath: search.yaml
+            - name: config-files
+              mountPath: /etc/opencloud/csp.yaml
+              subPath: csp.yaml
           resources:
             {{- toYaml .Values.opencloud.resources | nindent 12 }}
       volumes:
